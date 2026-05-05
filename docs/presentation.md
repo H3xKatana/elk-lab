@@ -58,15 +58,53 @@ paginate: true
 
 ---
 
-## The 5 Log Sources
+## The 6 Log Sources
 
-| Source | Format | Key Fields | Use Case |
-|--------|--------|------------|----------|
-| **Nginx** | Combined Apache Log | clientip, status, request | Web traffic analysis |
-| **SSH** | JSON | user, result, source_ip, geoip | Security monitoring |
-| **Syslog (Linux)** | RFC5424 | hostname, process, message | System events |
-| **Syslog (Cisco)** | CEF | src_ip, dst_ip, severity | Network device logs |
-| **App Service** | JSON | method, endpoint, status_code, latency | Application health |
+| Source | Shipper | Format | Key Fields | Use Case |
+|--------|---------|--------|------------|----------|
+| **Nginx** | Filebeat | Combined Apache Log | clientip, status, request | Web traffic |
+| **SSH** | Filebeat | JSON | user, result, source_ip, geoip | Security |
+| **Syslog (Linux)** | Filebeat | RFC5424 | hostname, process, message | System events |
+| **Syslog (Cisco)** | Filebeat | CEF | src_ip, dst_ip, severity | Network logs |
+| **App Service** | Filebeat | JSON | method, endpoint, latency | App health |
+| **Windows Events** | Winlogbeat | Windows XML | EventID, LogonType, IpAddress | Windows security |
+
+<!-- _footer: "" -->
+
+---
+
+## Log Source: Windows Event Logs
+
+**Shipper:** Winlogbeat (not Filebeat)
+
+**Format:** Windows Event XML
+
+```
+Event ID 4624: Account successfully logged on
+Event ID 4625: Account failed to log on
+Event ID 4634: Logoff
+Event ID 4648: Explicit credentials used
+```
+
+**Key Fields:**
+- `EventID` → 4624 (success), 4625 (failure)
+- `LogonType` → 2 (interactive), 10 (remote), 3 (network)
+- `IpAddress` → Source of logon attempt
+
+<!-- _footer: "" -->
+
+---
+
+## WEF Architecture: Push vs Pull
+
+| Feature | Source-Initiated (Push) | Collector-Initiated (Pull) |
+|---------|-------------------------|---------------------------|
+| **Scalability** | HIGH - agents send independently | LOW - collector becomes bottleneck |
+| **Firewall** | Complex - inbound rules needed | Simple - outbound from agents |
+| **Configuration** | Distributed (per agent) | Centralized (collector config) |
+| **Remote Laptops** | IDEAL - tolerant of disconnection | Problematic - can't poll offline machines |
+
+**Recommendation:** Source-initiated (Push) for remote/roaming endpoints
 
 <!-- _footer: "" -->
 
@@ -162,6 +200,61 @@ CEF:0|Cisco|IOS|12.4|5|SSH login attempt|3|src=192.168.1.100 dst=10.0.0.5 spt=54
 
 ---
 
+## Setting Up: Windows Endpoints
+
+### Real Windows Event Forwarding with Winlogbeat
+
+Winlogbeat is the official Beats shipper for Windows Event Logs.
+
+**Architecture:**
+```
+Windows Server → Winlogbeat → Logstash :5044 → Elasticsearch
+```
+
+**Winlogbeat Configuration (winlogbeat.yml):**
+```yaml
+winlogbeat.event_logs:
+  - name: Security
+    processors:
+      - script:
+          when.equals.event_id: 4624
+          fields:
+            logon_result: success
+      - script:
+          when.equals.event_id: 4625
+          fields:
+            logon_result: failure
+  - name: System
+  - name: Application
+
+output.logstash:
+  hosts: ["elk-server:5044"]
+
+fields:
+  env: production
+fields_under_root: true
+```
+
+**Event IDs Tracked:**
+| Event ID | Description | LogonType |
+|----------|-------------|-----------|
+| **4624** | Account logon success | 2=Interactive, 3=Network, 10=RemoteInteractive |
+| **4625** | Account logon failure | Same types |
+| **4634** | Logoff | - |
+| **4648** | Explicit credentials | - |
+
+**Installation:**
+```powershell
+# Download Winlogbeat from Elastic
+# Extract to C:\Program Files\Winlogbeat
+# Install as Windows service
+.\install-service-winlogbeat.ps1
+```
+
+<!-- _footer: "" -->
+
+---
+
 ## Setting Up: Start the Stack
 
 ### Step 1: Navigate to docker directory
@@ -221,6 +314,7 @@ http://localhost:5601
 | `logs-syslog-*` | @timestamp |
 | `logs-cisco-*` | @timestamp |
 | `logs-app-*` | @timestamp |
+| `logs-windows-*` | @timestamp |
 
 **Note:** You can also use `logs-*` to query all sources at once
 
@@ -247,6 +341,14 @@ http://localhost:5601
 
 5. **App Latency Distribution** (Histogram)
    - X-axis: Number → `latency_ms`
+
+6. **Windows Logon Success/Failure** (Pie Chart)
+   - Slice by: Terms → `winlog.channel` (Security)
+   - Filter: `winlog.event_id` in [4624, 4625]
+
+7. **Windows Attack Sources** (Map)
+   - Layer: Terms on `winlog.network.ip_address`
+   - Source: `logs-windows-*`
 
 <!-- _footer: "" -->
 
@@ -391,6 +493,28 @@ docker exec syslog-simulator /generate_syslog.sh 100
 
 # Restart a service
 docker compose restart filebeat
+```
+
+### Windows Event IDs (Security Log)
+
+| Event | Description |
+|-------|-------------|
+| **4624** | Account successfully logged on |
+| **4625** | Account failed to log on |
+| **4634** | Logoff |
+| **4648** | Explicit credentials used |
+
+### Winlogbeat (Windows)
+
+```powershell
+# Install
+.\install-service-winlogbeat.ps1
+
+# Start
+Start-Service winlogbeat
+
+# Test config
+.\winlogbeat test config -c winlogbeat.yml
 ```
 
 <!-- _footer: "" -->
