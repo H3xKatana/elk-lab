@@ -63,92 +63,23 @@
 
 ---
 
-## Infrastructure Components
-
-### Log Sources
-
-| Service | Format | Log File | Description |
-|---------|--------|----------|-------------|
-| **Nginx** | Apache Combined | `nginx/access.log` | HTTP requests, status codes |
-| **SSH Simulator** | JSON | `ssh/auth.log` | Auth attempts with GeoIP data |
-| **Syslog (Linux)** | RFC5424 | `syslog/linux.log` | System events from Linux hosts |
-| **Syslog (Cisco)** | CEF | `syslog/cisco.log` | Network device events |
-| **App Service** | JSON | `app/requests.log` | Custom API logging with latency |
-
-### Docker Services
-
-| Container | Image | Purpose |
-|-----------|-------|---------|
-| `elasticsearch` | elasticsearch:8.12.0 | Search and analytics engine |
-| `logstash` | logstash:8.12.0 | Log processing pipeline |
-| `kibana` | kibana:8.12.0 | Visualization UI |
-| `nginx-lb` | nginx:1.25-alpine | Load balancer + access logs |
-| `app-service` | python:3.11-slim | Flask app generating JSON logs |
-| `ssh-simulator` | ubuntu:22.04 | Generates SSH auth log events |
-| `syslog-simulator` | ubuntu:22.04 | Generates Linux + Cisco syslog |
-| `filebeat` | filebeat:8.12.0 | Ships all logs to Logstash |
-
----
-
-## Data Flow
-
-```
-1. Start stack:   docker compose up -d
-2. Simulators generate logs
-   • nginx-lb → access.log (HTTP requests)
-   • ssh-simulator → auth.log (JSON, 80% success / 20% failure)
-   • syslog-sim → linux.log + cisco.log
-   • app-service → requests.log (JSON API logs)
-
-3. Filebeat reads logs from shared volume
-   filebeat → Logstash :5044
-
-4. Logstash processing
-   Input (Beats) → Grok Filter → GeoIP Enrichment → Output (ES)
-
-5. Elasticsearch indexing
-   logs-{source}-YYYY.MM.DD
-
-6. Kibana visualization
-   Students create dashboards, maps, charts
-```
-
----
-
-## Prerequisites
-
-### System Requirements
-- **OS:** Linux, macOS, Windows (WSL2 recommended)
-- **Docker:** Version 20.10+
-- **Docker Compose:** Version 2.0+
-- **RAM:** 4GB minimum (8GB recommended)
-- **Disk:** 10GB free space
-
-### Recommended Docker Memory
-```bash
-# Edit Docker Desktop settings → Resources → Memory: 4GB+
-```
-
----
-
 ## Quick Start
 
-### 1. Clone and Start
+### 1. Start the Stack
 ```bash
-git clone https://github.com/H3xKatana/elk-lab.git
-cd elk-lab
+cd elk-lab/docker
 docker compose up -d
+
+# Wait 30-60 seconds for services to initialize
+docker compose ps
 ```
 
-### 2. Wait for Services (30-60 seconds)
+### 2. Verify Services
 ```bash
-# Check health
-docker compose ps
-
-# Verify Elasticsearch
+# Elasticsearch
 curl http://localhost:9200
 
-# Verify Kibana
+# Kibana
 curl http://localhost:5601/api/status
 ```
 
@@ -157,54 +88,123 @@ curl http://localhost:5601/api/status
 http://localhost:5601
 ```
 
-### 4. Create Index Patterns
-1. Go to **Stack Management** → **Index Patterns**
-2. Create patterns:
-   - `logs-*` (catch-all)
-   - `logs-nginx-*`
-   - `logs-ssh-*`
-   - `logs-syslog-*`
-   - `logs-app-*`
+---
 
-### 5. Explore Data
-- **Discover** - View raw log entries
-- **Visualize** - Create charts/maps
-- **Dashboard** - Build monitoring dashboards
+## Kibana Configuration (MUST DO)
+
+### Step 1: Create Index Patterns
+
+1. Click **Stack Management** (gear icon, bottom-left)
+2. Click **Index Patterns** → **Create index pattern**
+3. Create each pattern:
+
+| Pattern | Time Field |
+|---------|------------|
+| `logs-*` | `@timestamp` |
+| `logs-nginx-*` | `@timestamp` |
+| `logs-ssh-*` | `@timestamp` |
+| `logs-syslog-*` | `@timestamp` |
+| `logs-app-*` | `@timestamp` |
+
+### Step 2: Generate Test Data
+```bash
+# SSH logs
+docker exec ssh-simulator /generate_ssh_logs.sh 50
+
+# Syslog
+docker exec syslog-simulator /generate_syslog.sh 100
+
+# App logs
+curl http://localhost:5000/api/health
+curl -X POST http://localhost:5000/api/checkout \
+  -H "Content-Type: application/json" \
+  -d '{"item":"test","user_id":"user-123"}'
+
+# Nginx
+curl http://localhost:80
+curl http://localhost:80/checkout
+```
+
+### Step 3: Verify Data in Discover
+1. Click **Discover** (left sidebar)
+2. Select `logs-*` index pattern
+3. You should see documents appearing
+
+### Step 4: Create Visualizations
+
+#### 4.1 SSH Map (GeoIP Visualization)
+1. Click **Visualize** → **Create visualization**
+2. Select **Maps**
+3. Select `logs-ssh-*` index
+4. Add layer:
+   - **Aggregation**: Terms
+   - **Field**: `geoip.country_name` or `geoip.location`
+5. Save as "SSH Attack Sources"
+
+#### 4.2 SSH Success vs Failure (Pie Chart)
+1. **Visualize** → **Create** → **Pie chart**
+2. Select `logs-ssh-*`
+3. Buckets:
+   - **Slice by**: Terms → `ssh_result`
+4. Save as "SSH Auth Results"
+
+#### 4.3 Nginx Requests Over Time (Line Chart)
+1. **Visualize** → **Create** → **Line chart**
+2. Select `logs-nginx-*`
+3. Buckets:
+   - **X-axis**: Date histogram → `@timestamp`
+4. Save as "Nginx Traffic"
+
+#### 4.4 HTTP Status Codes (Bar Chart)
+1. **Visualize** → **Create** → **Bar chart**
+2. Select `logs-nginx-*`
+3. Buckets:
+   - **X-axis**: Terms → `status`
+4. Save as "HTTP Status Codes"
+
+#### 4.5 App Latency (histogram)
+1. **Visualize** → **Create** → **histogram**
+2. Select `logs-app-*`
+3. Buckets:
+   - **X-axis**: Number histogram → `response_time`
+4. Save as "App Latency Distribution"
+
+### Step 5: Build Dashboard
+1. Click **Dashboard** → **Create dashboard**
+2. Add all saved visualizations
+3. Arrange and resize panels
+4. Save as "ELK Lab Overview"
 
 ---
 
 ## Generating Logs
 
-### Nginx Access Logs (auto-generated on request)
+### Nginx Access Logs
 ```bash
 curl http://localhost:80
-curl http://localhost:80/health
 curl http://localhost:80/products/123
+curl http://localhost:80/checkout
 ```
 
 ### SSH Auth Logs
 ```bash
-docker exec ssh-simulator generate_ssh_logs.sh 50
-# Generates 50 events:
-#   - 80% success (valid logins)
-#   - 20% failure (brute-force attempts from various IPs)
+docker exec ssh-simulator /generate_ssh_logs.sh 50
+# 80% success, 20% failure from various IPs
 ```
 
 ### Syslog Events
 ```bash
-docker exec syslog-simulator generate_syslog.sh 100
-# Generates 100 events:
-#   - 50 Linux RFC5424 format events
-#   - 50 Cisco CEF format events
+docker exec syslog-simulator /generate_syslog.sh 100
+# 50 Linux RFC5424 + 50 Cisco CEF events
 ```
 
-### App Request Logs (auto-generated every 5 seconds)
+### App Request Logs
 ```bash
-# Manual API calls:
 curl http://localhost:5000/api/health
+curl http://localhost:5000/api/products
 curl -X POST http://localhost:5000/api/checkout \
   -H "Content-Type: application/json" \
-  -d '{"item":"prod123","user_id":"user-456"}'
+  -d '{"item":"prod-101","quantity":2}'
 ```
 
 ---
@@ -226,8 +226,7 @@ curl -X POST http://localhost:5000/api/checkout \
   "port": 54321,
   "auth_method": "password",
   "session_id": "ABC123DEF",
-  "result": "failure",
-  "country": "RU"
+  "result": "failure"
 }
 ```
 
@@ -245,22 +244,17 @@ CEF:0|Cisco|IOS|12.4|5|SSH login attempt|3|src=192.168.1.100 dst=10.0.0.5 spt=54
 ```json
 {
   "timestamp": "2024-05-05T14:30:00Z",
-  "level": "INFO",
-  "service": "checkout-api",
   "request_id": "req-abc123",
   "method": "POST",
   "endpoint": "/api/checkout",
   "status_code": 200,
-  "latency_ms": 145,
-  "user_id": "user-456"
+  "latency_ms": 145
 }
 ```
 
 ---
 
 ## Learning Objectives
-
-By completing this lab, students will:
 
 1. **Configure shippers** - Set up Filebeat to read multiple log sources
 2. **Parse unstructured logs** - Use Grok filters to extract fields
@@ -276,60 +270,53 @@ By completing this lab, students will:
 
 ```
 elk-lab/
-├── docker-compose.yml          # Main stack (ELK + simulators)
 ├── docker/
-│   ├── nginx.conf             # Nginx configuration
-│   ├── generate_ssh_logs.sh   # SSH simulator script
-│   ├── generate_syslog.sh     # Syslog simulator script
+│   ├── docker-compose.yml
+│   ├── nginx.conf
+│   ├── generate_ssh_logs.sh
+│   ├── generate_syslog.sh
 │   └── app/
-│       └── app.py             # Flask API application
+│       ├── app.py
+│       └── Dockerfile
 ├── config/
-│   ├── filebeat.yml           # Filebeat config (all log sources)
-│   └── logstash.conf          # Logstash pipeline (Grok + GeoIP)
-├── logs/                      # Shared log directory
+│   ├── filebeat.yml
+│   └── logstash.conf
+├── logs/
 │   ├── nginx/
 │   ├── ssh/
 │   ├── syslog/
 │   └── app/
 └── docs/
-    └── README.md              # This file
+    └── README.md
 ```
 
 ---
 
 ## Troubleshooting
 
-### Services Not Starting
+### No Data in Kibana
 ```bash
-docker compose logs elasticsearch
-docker compose restart
+# Check Filebeat
+docker exec filebeat filebeat test config
+docker logs filebeat
+
+# Check Logstash
+docker compose logs logstash | tail -50
+
+# Check Elasticsearch indices
+curl localhost:9200/_cat/indices?v
 ```
 
-### No Logs in Kibana
+### Services Not Running
 ```bash
-# Check filebeat is reading
-docker exec filebeat filebeat test output
-
-# Check Logstash received logs
-docker compose logs logstash | grep "input"
-
-# Verify indices exist
-curl http://localhost:9200/_cat/indices?v
+docker compose restart
+docker compose logs --tail=100
 ```
 
 ### GeoIP Not Working
 ```bash
-# Verify GeoIP database is downloaded
+# Check Logstash has GeoIP database
 docker exec logstash ls -la /usr/share/logstash/vendor/geoip/
-
-# Check Logstash GeoIP filter config
-docker compose logs logstash | grep "geoip"
-```
-
-### High Memory Usage
-```bash
-# Increase Docker memory limit to 4GB+
-# Docker Desktop → Settings → Resources → Memory
 ```
 
 ---
@@ -337,12 +324,5 @@ docker compose logs logstash | grep "geoip"
 ## Cleanup
 
 ```bash
-# Stop all containers
-docker compose down
-
-# Remove volumes (clean slate)
 docker compose down -v
-
-# Remove all images
-docker compose down --rmi all
 ```
