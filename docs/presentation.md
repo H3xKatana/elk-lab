@@ -101,7 +101,7 @@ Linux/Cloud Endpoints              Windows Endpoints
 **Key Security Events:**
 
 | Event ID | Channel | Description | Critical For |
-|----------|---------|-------------|--------------|
+|----------|---------|-------------|-------------|
 | **4624** | Security | Account successfully logged on | Tracking valid logins |
 | **4625** | Security | Account failed to log on | Detecting brute force |
 | **4634** | Security | Logoff | Session tracking |
