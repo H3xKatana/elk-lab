@@ -1,0 +1,54 @@
+# Winlogbeat Configuration for Windows Edge Node
+# Best Practices Applied:
+# - Collects critical Windows logs (Application, System, Security)
+# - Filters for security-relevant Event IDs
+# - Adds host metadata for correlation
+# - Structured logging for SIEM integration
+# - Log rotation for Winlogbeat's own logs
+
+winlogbeat.event_logs:
+  - name: Application
+    tags: ["windows", "application", "edge-node-b"]
+    include_xml: false
+    ignore_older: 72h
+
+  - name: System
+    tags: ["windows", "system", "edge-node-b"]
+    include_xml: false
+    ignore_older: 72h
+
+  - name: Security
+    tags: ["windows", "security", "edge-node-b"]
+    include_xml: false
+    ignore_older: 72h
+    processors:
+      - script:
+          lang: javascript
+          id: security_filter
+          file: ${path.home}/module/security/config/winlogbeat-security.js
+
+winlogbeat.shutdown_timeout: 15s
+
+output.logstash:
+  hosts: ["logstash:5044"]
+  bulk_max_size: 2048
+  compression_level: 3
+  worker: 2
+
+processors:
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+  - add_cloud_metadata: ~
+  - add_fields:
+      target: ''
+      fields:
+        env: lab
+        service: windows-security
+
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: C:\ProgramData\winlogbeat\Logs
+  name: winlogbeat
+  keepfiles: 7
+  rotateeverybytes: 10485760  # 10MB
