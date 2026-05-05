@@ -1,0 +1,21 @@
+filebeat.inputs:
+  - type: filestream
+    enabled: true
+    paths:
+      - /var/log/nginx/access.log
+    fields:
+      env: lab
+      service: nginx
+      telemetry: log
+    fields_under_root: true
+    tags: ["nginx", "linux"]
+
+processors:
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+  - add_cloud_metadata: ~
+
+output.logstash:
+  hosts: ["logstash:5044"]
+
+logging.level: info

@@ -1,0 +1,45 @@
+filebeat.inputs:
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/windows/security.log
+    fields:
+      env: lab
+      service: windows
+      telemetry: log
+      event_type: security
+    fields_under_root: true
+    tags: ["windows", "security"]
+
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/windows/application.log
+    fields:
+      env: lab
+      service: windows
+      telemetry: log
+      event_type: application
+    fields_under_root: true
+    tags: ["windows", "application"]
+
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/windows/system.log
+    fields:
+      env: lab
+      service: windows
+      telemetry: log
+      event_type: system
+    fields_under_root: true
+    tags: ["windows", "system"]
+
+processors:
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+
+output.logstash:
+  hosts: ["logstash:5044"]
+
+logging.level: info
