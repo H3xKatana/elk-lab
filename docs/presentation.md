@@ -772,7 +772,7 @@ docker compose logs --tail=100
 
 # Questions?
 
-**Lab Repository:** `/home/morta/workspace/elk-lab`
+**Lab Repository:** https://github.com/H3xKatana/elk-lab
 
 <!-- _class: lead -->
 
