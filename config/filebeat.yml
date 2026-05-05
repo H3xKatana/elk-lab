@@ -1,17 +1,85 @@
 filebeat.inputs:
   - type: filestream
+    id: nginx-access
     enabled: true
     paths:
       - /var/log/nginx/access.log
+    fields:
+      service: nginx
+    fields_under_root: true
+    harvester_buffer_size: 16384
+    max_bytes: 1048576
+    close_inactive: 1m
+    scan_frequency: 1s
+
+  - type: filestream
+    id: nginx-error
+    enabled: true
+    paths:
       - /var/log/nginx/error.log
     fields:
-      env: lab
-      service: nginx-checkout
-      datacenter: dc1
-    fields_under_root: false
-    tags: ["nginx", "linux", "checkout", "edge-node-a"]
-    exclude_lines: ['^#']
-    include_lines: ['\b200\b', '\b404\b', '\b500\b']
+      service: nginx
+    fields_under_root: true
+    harvester_buffer_size: 16384
+    max_bytes: 1048576
+
+  - type: filestream
+    id: ssh-auth
+    enabled: true
+    paths:
+      - /var/log/ssh/auth.log
+    fields:
+      service: ssh
+    fields_under_root: true
+    harvester_buffer_size: 16384
+    max_bytes: 1048576
+    parsers:
+      - multiline:
+          type: pattern
+          pattern: '^\{'
+          negate: true
+          match: after
+
+  - type: filestream
+    id: syslog-linux
+    enabled: true
+    paths:
+      - /var/log/syslog/linux.log
+    fields:
+      service: syslog
+    fields_under_root: true
+    harvester_buffer_size: 16384
+    max_bytes: 1048576
+
+  - type: filestream
+    id: syslog-cisco
+    enabled: true
+    paths:
+      - /var/log/syslog/cisco.log
+    fields:
+      service: cisco
+    fields_under_root: true
+    harvester_buffer_size: 16384
+    max_bytes: 1048576
+
+  - type: filestream
+    id: app-requests
+    enabled: true
+    paths:
+      - /var/log/app/requests.log
+    fields:
+      service: app
+    fields_under_root: true
+    harvester_buffer_size: 16384
+    max_bytes: 1048576
+    parsers:
+      - multiline:
+          type: pattern
+          pattern: '^\{'
+          negate: true
+          match: after
+          max_lines: 100
+          timeout: 5s
 
 filebeat.config.modules:
   path: ${path.config}/modules.d/*.yml
@@ -22,11 +90,6 @@ processors:
       when.not.contains.tags: forwarded
   - add_cloud_metadata: ~
   - add_docker_metadata: ~
-  - timestamp:
-      field: '@timestamp'
-      layouts:
-        - '2006-01-02T15:04:05.000Z'
-        - '2006-01-02 15:04:05'
 
 output.logstash:
   hosts: ["logstash:5044"]

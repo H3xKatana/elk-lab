@@ -102,7 +102,7 @@ services:
     volumes:
       - ./generate_ssh_logs.sh:/generate_ssh_logs.sh:ro
       - ../logs/ssh:/var/log/ssh
-    entrypoint: ["/bin/bash", "-c", "apt-get update -qq && apt-get install -y -qq python3 && chmod +x /generate_ssh_logs.sh && tail -f /dev/null"]
+    entrypoint: ["/bin/bash", "-c", "apt-get update -qq && apt-get install -y -qq python3 curl && chmod +x /generate_ssh_logs.sh && /generate_ssh_logs.sh 20 && while sleep 30; do /generate_ssh_logs.sh 5; done"]
     networks:
       - elk-network
     restart: unless-stopped
@@ -113,7 +113,7 @@ services:
     volumes:
       - ./generate_syslog.sh:/generate_syslog.sh:ro
       - ../logs/syslog:/var/log/syslog
-    entrypoint: ["/bin/bash", "-c", "apt-get update -qq && apt-get install -y -qq python3 && chmod +x /generate_syslog.sh && tail -f /dev/null"]
+    entrypoint: ["/bin/bash", "-c", "apt-get update -qq && apt-get install -y -qq python3 curl && chmod +x /generate_syslog.sh && /generate_syslog.sh 50 && while sleep 45; do /generate_syslog.sh 10; done"]
     networks:
       - elk-network
     restart: unless-stopped
