@@ -15,9 +15,23 @@ paginate: true
 
 ## Agenda
 
+1. Architecture Overview
+2. The 6 Log Sources
+3. ELK Stack Components
+4. Setting Up the Stack
+5. Windows Event Forwarding
+6. Error Budgets & SLOs
+7. Configuring Kibana
+8. Learning Outcomes
+
+---
+
+## Agenda
+
 - Architecture Overview
-- The 5 Log Sources
+- The 6 Log Sources (Linux + Windows)
 - Setting Up the Stack
+- Windows Event Forwarding Setup
 - Configuring Kibana
 - Generating Test Data
 - Learning Outcomes
@@ -29,30 +43,35 @@ paginate: true
 ## Architecture Overview
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    Log Directory                         │
-│  nginx/access.log  │  ssh/auth.log  │  syslog/  │  app/ │
-└───────────────────────────┬─────────────────────────────┘
-                            │
-                     ┌──────▼──────┐
-                     │  Filebeat   │
-                     │  (Shipper)  │
-                     └──────┬──────┘
-                            │ :5044
-                     ┌──────▼──────┐
-                     │  Logstash   │  Parse • Enrich • Route
-                     └──────┬──────┘
-                            │ :9200
-                     ┌──────▼──────┐
-                     │Elasticsearch│  Store • Index
-                     └──────┬──────┘
-                            │ :5601
-                     ┌──────▼──────┐
-                     │   Kibana    │  Visualize • Analyze
-                     └─────────────┘
+Linux/Cloud Endpoints              Windows Endpoints
+┌─────────────────┐               ┌──────────────────┐
+│  Nginx          │               │  Windows Server   │
+│  SSH Simulator  │               │  Winlogbeat       │
+│  Syslog         │               │  (Security,System,│
+│  App Service    │               │   Application)    │
+└────────┬────────┘               └────────┬─────────┘
+         │                                 │
+         │ Filebeat :5044        Winlogbeat :5044
+         │                                 │
+         └────────────┬───────────────────┘
+                      │
+               ┌──────▼──────┐
+               │  Logstash   │  Parse • Enrich • Route
+               │  (Grok+Geo) │
+               └──────┬──────┘
+                      │ :9200
+               ┌──────▼──────┐
+               │Elasticsearch│  Store • Index
+               └──────┬──────┘
+                      │ :5601
+               ┌──────▼──────┐
+               │   Kibana    │  Visualize • Analyze
+               └─────────────┘
 ```
 
-**Data Flow:** Logs → Filebeat → Logstash → Elasticsearch ← Kibana
+**Data Flow:**
+- **Linux:** Logs → Filebeat → Logstash → Elasticsearch ← Kibana
+- **Windows:** Windows Events → Winlogbeat → Logstash → Elasticsearch ← Kibana
 
 <!-- _footer: "" -->
 
@@ -75,21 +94,44 @@ paginate: true
 
 ## Log Source: Windows Event Logs
 
-**Shipper:** Winlogbeat (not Filebeat)
+**Shipper:** Winlogbeat (official Elastic Beats for Windows)
 
-**Format:** Windows Event XML
+**Format:** Windows Event XML (rendered as JSON by Winlogbeat)
 
-```
-Event ID 4624: Account successfully logged on
-Event ID 4625: Account failed to log on
-Event ID 4634: Logoff
-Event ID 4648: Explicit credentials used
-```
+**Key Security Events:**
 
-**Key Fields:**
-- `EventID` → 4624 (success), 4625 (failure)
-- `LogonType` → 2 (interactive), 10 (remote), 3 (network)
-- `IpAddress` → Source of logon attempt
+| Event ID | Channel | Description | Critical For |
+|----------|---------|-------------|--------------|
+| **4624** | Security | Account successfully logged on | Tracking valid logins |
+| **4625** | Security | Account failed to log on | Detecting brute force |
+| **4634** | Security | Logoff | Session tracking |
+| **4648** | Security | Explicit credentials used | Silver ticket attacks |
+| **4672** | Security | Special privileges assigned | Privilege escalation |
+| **4688** | Security | New process created | Execution monitoring |
+| **4698** | Security | Scheduled task created | Persistence detection |
+
+**LogonType Codes (from 4624/4625):**
+
+| Code | Name | Description | Risk Level |
+|------|------|-------------|------------|
+| **2** | Interactive | Local keyboard login | Medium |
+| **3** | Network | File/print sharing, RDP tunnel | Low |
+| **4** | Batch | Scheduled task | Medium |
+| **5** | Service | Service account | Low |
+| **7** | Unlock | Workstation unlocked | Low |
+| **8** | NetworkCleartext | Creds sent in cleartext | HIGH |
+| **9** | NewCredentials | RunAs / credential delegation | HIGH |
+| **10** | RemoteInteractive | RDP/Virtual machines | Medium |
+| **11** | CachedInteractive | Offline login | Low |
+
+**Target Account Analysis (4624/4625):**
+- `TargetUserName` → Who logged in
+- `TargetDomainName` → Which domain
+- `TargetLogonId` → Unique session ID
+- `IpAddress` → Source IP (valuable for attack mapping)
+- `LogonType` → HOW they logged in (method)"
+
+<!-- _footer: "" -->
 
 <!-- _footer: "" -->
 
@@ -99,12 +141,17 @@ Event ID 4648: Explicit credentials used
 
 | Feature | Source-Initiated (Push) | Collector-Initiated (Pull) |
 |---------|-------------------------|---------------------------|
-| **Scalability** | HIGH - agents send independently | LOW - collector becomes bottleneck |
-| **Firewall** | Complex - inbound rules needed | Simple - outbound from agents |
-| **Configuration** | Distributed (per agent) | Centralized (collector config) |
-| **Remote Laptops** | IDEAL - tolerant of disconnection | Problematic - can't poll offline machines |
+| **Scalability** | HIGH - independent agents | LOW - collector bottleneck |
+| **Firewall** | Complex - inbound rules | Simple - outbound only |
+| **Remote Laptops** | IDEAL - tolerates disconnection | PROBLEMATIC - can't poll offline |
 
-**Recommendation:** Source-initiated (Push) for remote/roaming endpoints
+**Recommendation:** Push for roaming devices, Pull for always-on servers
+
+### Windows Server 2025: IAKerb & Local KDC
+- Reduces NTLM dependency for remote/hybrid workers
+- Local KDC enables offline authentication with cached credentials
+
+<!-- _footer: "" -->
 
 <!-- _footer: "" -->
 
@@ -202,54 +249,131 @@ CEF:0|Cisco|IOS|12.4|5|SSH login attempt|3|src=192.168.1.100 dst=10.0.0.5 spt=54
 
 ## Setting Up: Windows Endpoints
 
-### Real Windows Event Forwarding with Winlogbeat
+### Winlogbeat: Official Elastic Shipper for Windows Events
 
-Winlogbeat is the official Beats shipper for Windows Event Logs.
+Winlogbeat monitors Windows Event Logs and streams them to Logstash.
 
 **Architecture:**
 ```
-Windows Server → Winlogbeat → Logstash :5044 → Elasticsearch
+┌─────────────────┐         ┌──────────────┐         ┌──────────────┐
+│  Windows Server │         │   Logstash   │         │Elasticsearch │
+│                 │ Winlog  │              │         │              │
+│ Security.evtx   │────────▶│  :5044       │────────▶│ logs-windows │
+│ System.evtx     │         │  (Grok+Geo)  │         │     YYYY.MM.DD
+│ Application.evtx│         └──────────────┘         └──────────────┘
+└─────────────────┘                                       │
+                                                          ▼
+                                                      ┌────────┐
+                                                      │ Kibana │
+                                                      └────────┘
 ```
 
-**Winlogbeat Configuration (winlogbeat.yml):**
+**Full winlogbeat.yml Configuration:**
 ```yaml
 winlogbeat.event_logs:
   - name: Security
+    fields:
+      log_source: windows_server
     processors:
       - script:
           when.equals.event_id: 4624
           fields:
             logon_result: success
+            event_category: authentication
       - script:
           when.equals.event_id: 4625
           fields:
             logon_result: failure
+            event_category: authentication
+      - script:
+          when.equals.event_id: 4672
+          fields:
+            event_category: privileged_access
+      - script:
+          when.equals.event_id: 4688
+          fields:
+            event_category: process_creation
+
   - name: System
+    fields:
+      log_source: windows_server
+
   - name: Application
+    fields:
+      log_source: windows_server
 
 output.logstash:
-  hosts: ["elk-server:5044"]
+  hosts: ["10.5.0.175:5044"]  # Your ELK server IP
+  compression_level: 3
 
 fields:
-  env: production
+  env: lab
+  datacenter: dc1
 fields_under_root: true
+
+logging.level: info
+logging.to_files: true
 ```
 
-**Event IDs Tracked:**
-| Event ID | Description | LogonType |
-|----------|-------------|-----------|
-| **4624** | Account logon success | 2=Interactive, 3=Network, 10=RemoteInteractive |
-| **4625** | Account logon failure | Same types |
-| **4634** | Logoff | - |
-| **4648** | Explicit credentials | - |
-
-**Installation:**
+**Installation Steps (Windows Server):**
 ```powershell
-# Download Winlogbeat from Elastic
-# Extract to C:\Program Files\Winlogbeat
-# Install as Windows service
+# 1. Download Winlogbeat from https://www.elastic.co/downloads/beats/winlogbeat
+
+# 2. Extract to C:\Program Files\Winlogbeat\
+
+# 3. Open PowerShell as Administrator
+cd C:\Program Files\Winlogbeat
+
+# 4. Install as Windows service
 .\install-service-winlogbeat.ps1
+
+# 5. Copy your winlogbeat.yml to C:\Program Files\Winlogbeat\
+
+# 6. Start the service
+Start-Service winlogbeat
+
+# 7. Verify it's running
+Get-Service winlogbeat
+
+# 8. Test configuration
+.\winlogbeat test config -c winlogbeat.yml
+
+# 9. View logs
+.\winlogbeat -e -d "*"
 ```
+
+**Event ID Reference (Security Log):**
+
+| Event ID | Description | Fields Extracted |
+|----------|-------------|------------------|
+| **4624** | Account logon success | TargetUserName, LogonType, IpAddress, ProcessName |
+| **4625** | Account logon failure | TargetUserName, LogonType, IpAddress, Status, FailureReason |
+| **4634** | Logoff | TargetUserName, LogonType |
+| **4648** | Explicit credentials | SubjectUserName, TargetUserName, IpAddress |
+| **4672** | Special privileges assigned | PrivilegeList (SeDebugPrivilege, etc.) |
+| **4688** | Process creation | NewProcessName, ParentProcessName, CreatorProcessId |
+| **4698** | Scheduled task created | TaskName, UserContext |
+
+**Key Kibana Visualizations for Windows:**
+
+1. **Brute Force Detection** (Pie Chart)
+   - Filter: `winlog.event_id: 4625`
+   - Group by: `winlog.network.ip_address`
+
+2. **Attack Origin Map** (Maps)
+   - Source: `logs-windows-*`
+   - Layer: Terms on `geoip.location`
+   - Filter: `logon_result: failure`
+
+3. **Successful Logins Timeline** (Line Chart)
+   - X-axis: Date histogram
+   - Split by: LogonType (2, 3, 10)
+
+4. **Privilege Escalation Alert** (Data Table)
+   - Filter: `winlog.event_id: 4672`
+   - Show: TargetUserName, PrivilegeList
+
+<!-- _footer: "" -->
 
 <!-- _footer: "" -->
 
@@ -435,29 +559,97 @@ Look for indices like: `logs-nginx-2024.05.05`
 ## Logstash Pipeline: How It Works
 
 ```
-input { beats { port => 5044 } }
+input { beats { port => 5044 } }  # Accepts BOTH Filebeat AND Winlogbeat
 
 filter {
-  # Route by service type
-  if [service] == "nginx" { grok { ... } geoip { ... } }
-  if [service] == "ssh"   { json { ... } geoip { ... } }
-  if [service] == "syslog" { grok { ... } }
-  if [service] == "cisco"  { grok { ... } }
-  if [service] == "app"    { json { ... } }
+  # NGINX: Parse Apache Combined Log format
+  if [service] == "nginx" {
+    grok { match => { "message" => "%{COMBINEDAPACHELOG}" } }
+    geoip { source => "clientip" target => "geoip" }
+    mutate { add_field => { "[@metadata][index]" => "nginx" } }
+  }
+
+  # SSH: Parse JSON with country codes
+  if [service] == "ssh" {
+    json { source => "message" target => "ssh_data" }
+    date  { match => [ "[ssh_data][timestamp]" "ISO8601" ] }
+    geoip { source => "[ssh_data][source_ip]" target => "geoip" }
+    mutate { rename => { "[ssh_data][result]" => "ssh_result" }
+            add_field => { "[@metadata][index]" => "ssh" } }
+  }
+
+  # WINDOWS: Route Security events by Event ID
+  if [winlog][channel] == "Security" {
+    if [winlog][event_id] == 4624 {
+      mutate { add_field => { "logon_result" => "success"
+                             "[@metadata][index]" => "windows" } }
+    }
+    if [winlog][event_id] == 4625 {
+      mutate { add_field => { "logon_result" => "failure"
+                             "[@metadata][index]" => "windows" } }
+    }
+    # GeoIP on source IP for attack mapping
+    geoip { source => "[winlog][network][ip_address]" target => "geoip" }
+  }
+
+  # SYSLOG LINUX: RFC5424 format
+  if [service] == "syslog" {
+    grok { match => { "message" => "<%{POSINT:priority}>..." } }
+    mutate { add_field => { "[@metadata][index]" => "syslog" } }
+  }
+
+  # CISCO: CEF format
+  if [service] == "cisco" {
+    grok { match => { "message" => "CEF:%{NOTSPACE}..." } }
+    mutate { add_field => { "[@metadata][index]" => "cisco" } }
+  }
+
+  # APP: JSON API logs
+  if [service] == "app" {
+    json { source => "message" target => "app_data" }
+    mutate { rename => { "[app_data][latency_ms]" => "request_latency" }
+            add_field => { "[@metadata][index]" => "app" } }
+  }
 }
 
 output {
-  elasticsearch { index => "logs-%{[service]}-%{+YYYY.MM.dd}" }
+  elasticsearch { index => "logs-%{[@metadata][index]}-%{+YYYY.MM.dd}" }
 }
 ```
 
-**Key:** Dynamic index naming by service + date
+**Key Points:**
+- Single input port (5044) accepts logs from ALL shippers
+- Dynamic index naming: `logs-{service}-YYYY.MM.DD`
+- GeoIP runs on both Linux (SSH) and Windows events
+- Windows events enriched with `geoip.location` for map visualization
+
+<!-- _footer: "" -->
 
 <!-- _footer: "" -->
 
 ---
 
-## Learning Outcomes
+## ELK Stack Components
+
+### Shippers: Filebeat & Winlogbeat
+- **Filebeat**: Ships logs from Linux/Windows files
+- **Winlogbeat**: Ships Windows Event Logs (Security, System, Application)
+
+### Logstash Pipeline
+- **Input**: Receives from Beats on port 5044
+- **Filter**: Grok parsing + GeoIP enrichment
+- **Output**: Routes to Elasticsearch indices by service
+
+### Elasticsearch
+- **Inverted Index**: Enables sub-millisecond search across terabytes
+- **Daily indices**: `logs-{service}-YYYY.MM.DD`
+
+### Kibana
+- **Discover**: Query raw logs
+- **Visualize**: Charts, maps, histograms
+- **Dashboard**: Combined panels
+
+<!-- _footer: "" -->
 
 By completing this lab, you will be able to:
 
@@ -466,8 +658,25 @@ By completing this lab, you will be able to:
 3. **Enrich telemetry** - Add GeoIP for geographic context
 4. **Manage indices** - Create daily indices per log source
 5. **Build dashboards** - Visualize correlated telemetry
-6. **Analyze security events** - Identify brute-force attacks via SSH + GeoIP
+6. **Analyze security events** - Identify brute-force attacks via SSH + Windows events
 7. **Monitor app health** - Track latency and error rates
+8. **Calculate error budgets** - Determine SLO compliance and feature freeze decisions
+
+<!-- _footer: "" -->
+
+---
+
+## Error Budgets & SLOs
+
+**99.95% SLO → 21.6 min/month allowed downtime**
+
+```
+43,200 min × (1 - 0.9995) = 21.6 min/month
+```
+
+**Why p95/p99?** Mean hides outliers. p99 = 99% of users get acceptable latency.
+
+**The "SRE Clamp":** When budget >50% consumed → freeze feature deployments.
 
 <!-- _footer: "" -->
 
