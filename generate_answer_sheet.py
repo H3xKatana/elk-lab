@@ -814,27 +814,17 @@ def build():
     for i, (img_file, caption) in enumerate(screenshot_files):
         img_path = f'/home/morta/workspace/elk-lab/docs/images/{img_file}'
         try:
-            from reportlab.lib.utils import ImageReader
-            img = Image(img_path, width=9*cm, height=5*cm)
-            img.hAlign = 'CENTER'
+            img = Image(img_path)
+            img.drawHeight = 4*cm
+            img.drawWidth = 7*cm
             
-            caption_p = Paragraph(caption, S['meta_value'])
+            caption_p = Paragraph(f'<br/><br/>{caption}', S['meta_value'])
             caption_p.alignment = TA_CENTER
             
-            data = [[img], [caption_p]]
-            table = Table(data, colWidths=[9*cm])
-            table.setStyle(TableStyle([
-                ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-                ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-                ('TOPPADDING', (0,0), (0,0), 2),
-                ('BOTTOMPADDING', (0,1), (0,1), 4),
-            ]))
-            story.append(table)
+            story.append(KeepTogether([img, caption_p, Spacer(1, 4)]))
             
             if (i + 1) % 2 == 0:
                 story.append(PageBreak())
-            else:
-                story.append(sp(6))
         except Exception as e:
             pass
             pass
