@@ -851,7 +851,49 @@ def build():
             ]
         },
         {
-            'title': 'Data Source 3 — Windows Security Event Logs',
+            'title': 'Data Source 3 — Syslog Linux (RFC5424)',
+            'color': colors.HexColor('#00897b'),
+            'pairs': [
+                ('Source Name', 'Linux Syslog Simulator'),
+                ('Telemetry Type', 'Log'),
+                ('Shipper', 'Filebeat'),
+                ('Identity Protocol', 'RFC5424 via Beats on TCP 5044'),
+                ('Processing', 'Logstash Grok filter'),
+                ('Transformation', 'Extract priority, hostname, process, message.'),
+                ('Final Destination', 'Elasticsearch: logs-syslog-YYYY.MM.DD'),
+                ('Visualization', 'Kibana — System events timeline'),
+            ]
+        },
+        {
+            'title': 'Data Source 4 — Cisco Network Logs (CEF)',
+            'color': colors.HexColor('#f57c00'),
+            'pairs': [
+                ('Source Name', 'Cisco IOS Syslog Simulator'),
+                ('Telemetry Type', 'Log'),
+                ('Shipper', 'Filebeat'),
+                ('Identity Protocol', 'CEF format via Beats on TCP 5044'),
+                ('Processing', 'Logstash Grok filter for CEF'),
+                ('Transformation', 'Extract src_ip, dst_ip, severity. GeoIP enrichment.'),
+                ('Final Destination', 'Elasticsearch: logs-cisco-YYYY.MM.DD'),
+                ('Visualization', 'Kibana — Network traffic map, severity chart'),
+            ]
+        },
+        {
+            'title': 'Data Source 5 — App Service (REST API)',
+            'color': colors.HexColor('#c62828'),
+            'pairs': [
+                ('Source Name', 'Flask App Service'),
+                ('Telemetry Type', 'Log + Metric'),
+                ('Shipper', 'Filebeat'),
+                ('Identity Protocol', 'JSON via Beats on TCP 5044'),
+                ('Processing', 'Logstash JSON filter'),
+                ('Transformation', 'Extract method, endpoint, status_code, latency_ms.'),
+                ('Final Destination', 'Elasticsearch: logs-app-YYYY.MM.DD'),
+                ('Visualization', 'Kibana — Latency histogram, endpoint counts'),
+            ]
+        },
+        {
+            'title': 'Data Source 6 — Windows Security Event Logs',
             'color': colors.HexColor('#bf360c'),
             'pairs': [
                 ('Source Name', 'Windows Server 2025 Security Event Log'),
