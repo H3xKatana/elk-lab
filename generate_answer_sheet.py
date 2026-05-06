@@ -5,7 +5,7 @@ from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY, TA_RIGHT
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-    PageBreak, KeepTogether, Preformatted, HRFlowable
+    PageBreak, KeepTogether, Preformatted, HRFlowable, Image
 )
 from reportlab.platypus.flowables import Flowable
 import reportlab.lib.colors as rcolors
@@ -552,13 +552,13 @@ def build():
     story = []
 
     # COVER
-    story.append(sp(35))
-    cover_title_style = ParagraphStyle('ct2', fontSize=26, fontName='Helvetica-Bold',
+    story.append(sp(30))
+    cover_title_style = ParagraphStyle('ct2', fontSize=28, fontName='Helvetica-Bold',
         textColor=C_WHITE, alignment=TA_CENTER, spaceAfter=8)
-    cover_sub_style = ParagraphStyle('cs2', fontSize=13, fontName='Helvetica',
+    cover_sub_style = ParagraphStyle('cs2', fontSize=14, fontName='Helvetica',
         textColor=colors.HexColor('#bbdefb'), alignment=TA_CENTER, spaceAfter=4)
-    story.append(Paragraph('Student Answer Sheet', cover_title_style))
-    story.append(Paragraph('ELK Stack Lab - Chapter 5', cover_sub_style))
+    story.append(Paragraph('ELK Stack Lab', cover_title_style))
+    story.append(Paragraph('Observability & Centralized Logging - Chapter 5', cover_sub_style))
     story.append(sp(10))
 
     meta_data = [
@@ -792,6 +792,33 @@ def build():
     story += config_section('6.2 filebeat.yml', FILEBEAT_YML)
     story += config_section('6.3 winlogbeat.yml', WINLOGBEAT_YML)
     story += config_section('6.4 logstash.conf', LOGSTASH_CONF)
+    story.append(sp(10))
+
+    story.append(PageBreak())
+    story.append(section_header('Screenshots - Kibana Visual Proof', S))
+    story.append(sp(8))
+
+    screenshot_files = [
+        ('explore-logs.png', 'Discover - Explore logs in Kibana'),
+        ('query-logs.png', 'Discover - Query logs with KQL'),
+        ('query-logs-b.png', 'Discover - Filter by service field'),
+        ('query-logs-c.png', 'Discover - Filter results'),
+        ('query-logs-d.png', 'Discover - View document details'),
+        ('dashboard-all.png', 'Dashboard - Full overview'),
+        ('create-vilz-b.png', 'Visualize - Create visualization'),
+        ('creating-vizulation.png', 'Visualize - Creating chart'),
+        ('nginx-healthy-200.png', 'Nginx - 200 status check'),
+    ]
+
+    for img_file, caption in screenshot_files:
+        img_path = f'/home/morta/workspace/elk-lab/docs/images/{img_file}'
+        try:
+            img = Image(img_path, width=14*cm, height=8*cm)
+            story.append(img)
+            story.append(Paragraph(f'<i>{caption}</i>', S['meta_value']))
+            story.append(sp(8))
+        except Exception as e:
+            pass
 
     story.append(PageBreak())
 
