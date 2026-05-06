@@ -105,35 +105,10 @@ def make_styles():
     return S
 
 def page_template(canvas, doc):
-    canvas.saveState()
-    canvas.setFillColor(C_NAVY)
-    canvas.rect(0, H - 10*mm, W, 10*mm, fill=1, stroke=0)
-    canvas.setFillColor(C_WHITE)
-    canvas.setFont('Helvetica-Bold', 8)
-    canvas.drawString(LM, H - 6.5*mm, 'Kara Mohamed Mourtadha  |  Group 5')
-    canvas.setFont('Helvetica', 8)
-    canvas.drawRightString(W - RM, H - 6.5*mm, 'SRE · Observability & Centralized Logging')
-    canvas.setFillColor(C_BLUE_LIGHT)
-    canvas.rect(0, 0, W, 8*mm, fill=1, stroke=0)
-    canvas.setFillColor(C_BLUE)
-    canvas.rect(0, 0, W, 1.2*mm, fill=1, stroke=0)
-    canvas.setFillColor(C_GREY_MED)
-    canvas.setFont('Helvetica', 7.5)
-    canvas.drawCentredString(W/2, 2.8*mm, f'Page {doc.page}  ·  ELK Lab Answer Sheet')
-    canvas.restoreState()
+    pass
 
 def first_page_template(canvas, doc):
-    canvas.saveState()
-    canvas.setFillColor(C_NAVY)
-    canvas.rect(0, H - 50*mm, W, 50*mm, fill=1, stroke=0)
-    canvas.setFillColor(C_BLUE_LIGHT)
-    canvas.rect(0, 0, W, 8*mm, fill=1, stroke=0)
-    canvas.setFillColor(C_BLUE)
-    canvas.rect(0, 0, W, 1.2*mm, fill=1, stroke=0)
-    canvas.setFillColor(C_GREY_MED)
-    canvas.setFont('Helvetica', 7.5)
-    canvas.drawCentredString(W/2, 2.8*mm, 'SRE · Observability & Centralized Logging  ·  ELK Lab')
-    canvas.restoreState()
+    pass
 
 def sp(h=4):
     return Spacer(1, h)
