@@ -5,7 +5,6 @@ paginate: true
 -->
 
 <!-- _class: lead -->
-<!-- _footer: "ELK Lab - Observability & Centralized Logging" -->
 
 # ELK Lab: Observability & Centralized Logging
 
@@ -26,17 +25,30 @@ paginate: true
 
 ---
 
-## Agenda
+## The Challenge: Why Binary Monitoring Fails
 
-- Architecture Overview
-- The 6 Log Sources (Linux + Windows)
-- Setting Up the Stack
-- Windows Event Forwarding Setup
-- Configuring Kibana
-- Generating Test Data
-- Learning Outcomes
+**Binary "up/down" monitoring is insufficient for modern systems**
 
-<!-- _footer: "" -->
+- **Cardinality explosion:** Millions of requests, each with unique latency fingerprints
+- **Unknown unknowns:** You don't know where failures lurk until they happen
+- **Statistical invisibility:** p99 latency spikes disappear in averages
+
+**Why p99 matters:** If p99 = 3s, 1% of users wait 3 seconds. That's a lot of abandoned carts.
+
+---
+
+## The Three Pillars of Observability
+
+| Pillar | Data Characteristic | E-Commerce Use Case |
+|--------|---------------------|---------------------|
+| **Logs** | Discrete events, high cardinality | Debug failed checkout by order_id |
+| **Metrics** | Aggregated numeric, low cardinality | Alert: error_rate > 2% |
+| **Traces** | Per-request call graphs, very high cardinality | Find 3s delay source |
+
+**How traces resolve bottlenecks:**
+- `trace_id` propagates across all services (HTTP headers)
+- Each span = one operation with duration
+- Waterfall view shows where time is spent
 
 ---
 
@@ -73,8 +85,6 @@ Linux/Cloud Endpoints              Windows Endpoints
 - **Linux:** Logs → Filebeat → Logstash → Elasticsearch ← Kibana
 - **Windows:** Windows Events → Winlogbeat → Logstash → Elasticsearch ← Kibana
 
-<!-- _footer: "" -->
-
 ---
 
 ## The 6 Log Sources
@@ -87,8 +97,6 @@ Linux/Cloud Endpoints              Windows Endpoints
 | **Syslog (Cisco)** | Filebeat | CEF | src_ip, dst_ip, severity | Network logs |
 | **App Service** | Filebeat | JSON | method, endpoint, latency | App health |
 | **Windows Events** | Winlogbeat | Windows XML | EventID, LogonType, IpAddress | Windows security |
-
-<!-- _footer: "" -->
 
 ---
 
@@ -131,10 +139,6 @@ Linux/Cloud Endpoints              Windows Endpoints
 - `IpAddress` → Source IP (valuable for attack mapping)
 - `LogonType` → HOW they logged in (method)"
 
-<!-- _footer: "" -->
-
-<!-- _footer: "" -->
-
 ---
 
 ## WEF Architecture: Push vs Pull
@@ -147,13 +151,41 @@ Linux/Cloud Endpoints              Windows Endpoints
 
 **Recommendation:** Push for roaming devices, Pull for always-on servers
 
-### Windows Server 2025: IAKerb & Local KDC
-- Reduces NTLM dependency for remote/hybrid workers
-- Local KDC enables offline authentication with cached credentials
+---
 
-<!-- _footer: "" -->
+## Windows Server 2025: IAKerb & Local KDC
 
-<!-- _footer: "" -->
+**IAKerb (Kerberos Armoring):**
+- Proxies Kerberos authentication between clients and KDC
+- Eliminates NTLM fallback (weaker authentication)
+- Required for "Protected Logon" in Windows Server 2025
+
+**Local KDC (Key Distribution Center):**
+- Embedded KDC runs directly on Windows Server 2025
+- Enables offline authentication with cached credentials
+- Hybrid/remote workers stay productive without DC connectivity
+
+**Why this matters:**
+- Remote workers on unstable VPNs get seamless auth
+- Reduces pressure on domain controllers
+- Improves security posture (no NTLM relay attacks)
+
+---
+
+## Forensic Prioritization
+
+**Exercise: Identify Windows Event IDs**
+
+| Task | Event ID |
+|------|----------|
+| Logon success | **4624** |
+| Logon failure | **4625** |
+
+**Why these matter:**
+- **4624** tracks legitimate user activity and normal working patterns
+- **4625** reveals brute force attempts, credential stuffing, misconfigured service accounts
+
+**Filtering tip:** Combine with `LogonType` to find anomalous access patterns (e.g., batch job at 3 AM from foreign IP)
 
 ---
 
@@ -161,7 +193,7 @@ Linux/Cloud Endpoints              Windows Endpoints
 
 **Format:** Combined Apache Log
 
-```
+```text
 192.168.1.50 - - [05/May/2024:14:30:00 +0000] "GET /checkout HTTP/1.1" 200 1234 "-" "Mozilla/5.0"
 ```
 
@@ -170,8 +202,6 @@ Linux/Cloud Endpoints              Windows Endpoints
 - `timestamp` → Parsed via date filter
 - `status` → HTTP status code
 - `request` → URL path and method
-
-<!-- _footer: "" -->
 
 ---
 
@@ -191,15 +221,13 @@ Linux/Cloud Endpoints              Windows Endpoints
 
 **Key Insight:** 80% successful logins (internal IPs) vs 20% failures (external attack IPs)
 
-<!-- _footer: "" -->
-
 ---
 
 ## Log Source: Syslog (Linux)
 
 **Format:** RFC5424
 
-```
+```text
 <34>1 2024-05-05T14:30:00Z webserver ssh 1234 - - Failed password for invalid user admin from 185.234.72.45 port 54321 ssh2
 ```
 
@@ -209,21 +237,17 @@ Linux/Cloud Endpoints              Windows Endpoints
 - `process` → service name
 - `message` → the actual event
 
-<!-- _footer: "" -->
-
 ---
 
 ## Log Source: Syslog (Cisco)
 
 **Format:** CEF (Common Event Format)
 
-```
+```text
 CEF:0|Cisco|IOS|12.4|5|SSH login attempt|3|src=192.168.1.100 dst=10.0.0.5 spt=54321 dpt=22
 ```
 
 **Fields:** Device type, severity level, source/destination IPs, ports
-
-<!-- _footer: "" -->
 
 ---
 
@@ -243,8 +267,6 @@ CEF:0|Cisco|IOS|12.4|5|SSH login attempt|3|src=192.168.1.100 dst=10.0.0.5 spt=54
 
 **Metrics Tracked:** Response times, error rates, endpoint popularity
 
-<!-- _footer: "" -->
-
 ---
 
 ## Setting Up: Windows Endpoints
@@ -254,7 +276,7 @@ CEF:0|Cisco|IOS|12.4|5|SSH login attempt|3|src=192.168.1.100 dst=10.0.0.5 spt=54
 Winlogbeat monitors Windows Event Logs and streams them to Logstash.
 
 **Architecture:**
-```
+```text
 ┌─────────────────┐         ┌──────────────┐         ┌──────────────┐
 │  Windows Server │         │   Logstash   │         │Elasticsearch │
 │                 │ Winlog  │              │         │              │
@@ -373,10 +395,6 @@ Get-Service winlogbeat
    - Filter: `winlog.event_id: 4672`
    - Show: TargetUserName, PrivilegeList
 
-<!-- _footer: "" -->
-
-<!-- _footer: "" -->
-
 ---
 
 ## Setting Up: Start the Stack
@@ -406,8 +424,6 @@ curl http://localhost:9200        # Elasticsearch
 curl http://localhost:5601/api/status  # Kibana
 ```
 
-<!-- _footer: "" -->
-
 ---
 
 ## Accessing Kibana
@@ -422,8 +438,6 @@ http://localhost:5601
 1. Click "Explore on my own" (skip tutorial)
 2. Stack Management → Index Patterns
 3. Create patterns for each log source
-
-<!-- _footer: "" -->
 
 ---
 
@@ -441,8 +455,6 @@ http://localhost:5601
 | `logs-windows-*` | @timestamp |
 
 **Note:** You can also use `logs-*` to query all sources at once
-
-<!-- _footer: "" -->
 
 ---
 
@@ -474,8 +486,6 @@ http://localhost:5601
    - Layer: Terms on `winlog.network.ip_address`
    - Source: `logs-windows-*`
 
-<!-- _footer: "" -->
-
 ---
 
 ## Build a Dashboard
@@ -487,8 +497,6 @@ http://localhost:5601
 4. Save as "ELK Lab Overview"
 
 **Pro Tip:** Use `logs-*` pattern to see all data, or filter by specific source using the `service` field
-
-<!-- _footer: "" -->
 
 ---
 
@@ -508,8 +516,6 @@ curl http://localhost:80/checkout
 docker exec ssh-simulator /generate_ssh_logs.sh 50
 # Generates 80% success (internal) + 20% failure (external)
 ```
-
-<!-- _footer: "" -->
 
 ---
 
@@ -531,8 +537,6 @@ curl -X POST http://localhost:5000/api/checkout \
   -d '{"item":"test","user_id":"user-123"}'
 ```
 
-<!-- _footer: "" -->
-
 ---
 
 ## Verifying Data Arrived
@@ -552,13 +556,11 @@ curl localhost:9200/_cat/indices?v
 
 Look for indices like: `logs-nginx-2024.05.05`
 
-<!-- _footer: "" -->
-
 ---
 
 ## Logstash Pipeline: How It Works
 
-```
+```ruby
 input { beats { port => 5044 } }  # Accepts BOTH Filebeat AND Winlogbeat
 
 filter {
@@ -623,10 +625,6 @@ output {
 - GeoIP runs on both Linux (SSH) and Windows events
 - Windows events enriched with `geoip.location` for map visualization
 
-<!-- _footer: "" -->
-
-<!-- _footer: "" -->
-
 ---
 
 ## ELK Stack Components
@@ -649,8 +647,6 @@ output {
 - **Visualize**: Charts, maps, histograms
 - **Dashboard**: Combined panels
 
-<!-- _footer: "" -->
-
 By completing this lab, you will be able to:
 
 1. **Configure log shippers** - Set up Filebeat to read multiple sources
@@ -661,8 +657,6 @@ By completing this lab, you will be able to:
 6. **Analyze security events** - Identify brute-force attacks via SSH + Windows events
 7. **Monitor app health** - Track latency and error rates
 8. **Calculate error budgets** - Determine SLO compliance and feature freeze decisions
-
-<!-- _footer: "" -->
 
 ---
 
@@ -678,7 +672,36 @@ By completing this lab, you will be able to:
 
 **The "SRE Clamp":** When budget >50% consumed → freeze feature deployments.
 
-<!-- _footer: "" -->
+---
+
+## SLI Proposal
+
+**Proposed SLI:** Percentage of `POST /api/checkout` returning HTTP 2xx AND latency < 500ms
+
+**Why this SLI:**
+- 5xx = complete failure (user can't complete purchase)
+- Cart abandonment rises sharply above 400ms
+- Checkout is the money moment (critical user journey)
+
+**Measurement:** `count(http_status >= 200 && http_status < 300 && latency < 500) / count(*)`
+
+---
+
+## The SRE Clamp
+
+```
+Error Budget: 21.6 min/month (99.95% SLO)
+                    │
+     50% consumed   │   FREEZE FEATURE DEPLOYMENTS
+         (10.8 min) │
+                    ▼
+    ─────────────────┼───────────────────▶
+    0 min         10.8 min          21.6 min
+                    │
+         Redirect engineering to reliability work
+```
+
+**Rule:** When >50% of error budget consumed (>10.8 of 21.6 min), freeze feature deployments until stability improves.
 
 ---
 
@@ -726,8 +749,6 @@ Start-Service winlogbeat
 .\winlogbeat test config -c winlogbeat.yml
 ```
 
-<!-- _footer: "" -->
-
 ---
 
 ## Troubleshooting
@@ -751,7 +772,49 @@ docker compose restart
 docker compose logs --tail=100
 ```
 
-<!-- _footer: "" -->
+---
+
+## System Interaction Maps
+
+**Data Source Pipelines:**
+
+| Source | Pipeline |
+|--------|----------|
+| **Nginx** | Filebeat → Logstash (Grok) → ES → Kibana |
+| **SSH** | Filebeat → Logstash (JSON) → ES → Kibana |
+| **Windows** | Winlogbeat → Logstash → ES → Kibana |
+
+```
+Linux/Cloud Endpoints              Windows Endpoints
+┌─────────────────┐               ┌──────────────────┐
+│  Nginx          │               │  Windows Server   │
+│  SSH Simulator  │               │  Winlogbeat       │
+│  Syslog         │               │  (Security,System,│
+│  App Service    │               │   Application)    │
+└────────┬────────┘               └────────┬─────────┘
+         │                                 │
+         │ Filebeat :5044        Winlogbeat :5044
+         │                                 │
+         └────────────┬───────────────────┘
+                      │
+               ┌──────▼──────┐
+               │  Logstash   │  Parse • Enrich • Route
+               │  (Grok+Geo) │
+               └──────┬──────┘
+                      │ :9200
+               ┌──────▼──────┐
+               │Elasticsearch│  Store • Index
+               └──────┬──────┘
+                      │ :5601
+               ┌──────▼──────┐
+               │   Kibana    │  Visualize • Analyze
+               └─────────────┘
+```
+
+**Pipeline at a glance:**
+- **Input:** Beats (Filebeat/Winlogbeat) on port 5044
+- **Filter:** Grok parsing + GeoIP enrichment
+- **Output:** Daily indices `logs-{source}-YYYY.MM.DD`
 
 ---
 
@@ -766,21 +829,17 @@ docker compose logs --tail=100
 
 **Next Steps:** Explore the data, create custom visualizations, build your own dashboard!
 
-<!-- _footer: "" -->
-
 ---
 
 # Questions?
 
 **Lab Repository:** https://github.com/H3xKatana/elk-lab
 
-<!-- _class: lead -->
-
 ---
 
 ## Backup: File Structure
 
-```
+```text
 elk-lab/
 ├── docker/
 │   ├── docker-compose.yml
@@ -796,8 +855,11 @@ elk-lab/
 │   ├── ssh/
 │   ├── syslog/
 │   └── app/
-└── docs/
-    └── README.md
+├── scripts/
+│   └── generate_answer_sheet.py
+├── docs/
+│   ├── presentation.md
+│   ├── student_answer_sheet-2.md
+│   └── README.md
+└── html/
 ```
-
-<!-- _footer: "" -->
