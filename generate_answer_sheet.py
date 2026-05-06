@@ -370,17 +370,6 @@ FILEBEAT_YML = """filebeat.inputs:
     max_bytes: 1048576
 
   - type: filestream
-    id: syslog-cisco
-    enabled: true
-    paths:
-      - /var/log/syslog/cisco.log
-    fields:
-      service: cisco
-    fields_under_root: true
-    harvester_buffer_size: 16384
-    max_bytes: 1048576
-
-  - type: filestream
     id: app-requests
     enabled: true
     paths:
@@ -485,21 +474,6 @@ filter {
     }
   }
 
-  if [service] == "cisco" {
-    grok {
-      match => { "message" => "CEF:%{NOTSPACE}cisco_version|%{NOTSPACE:device_type}|%{NOTSPACE:ios_version}|%{NOTSPACE:event_id}|%{NOTSPACE:event_desc}|%{GREEDYDATA:message}" }
-      overwrite => ["message"]
-      add_field => { "[@metadata][index]" => "cisco" }
-    }
-    grok {
-      match => { "message" => "src=%{IP:cisco_src_ip} dst=%{IP:cisco_dst_ip} spt=%{INT:cisco_src_port} dpt=%{INT:cisco_dst_port}" }
-    }
-    geoip {
-      source => "cisco_src_ip"
-      target => "geoip"
-    }
-  }
-
   if [service] == "app" {
     json {
       source => "message"
@@ -584,7 +558,7 @@ def build():
     cover_sub_style = ParagraphStyle('cs2', fontSize=13, fontName='Helvetica',
         textColor=colors.HexColor('#bbdefb'), alignment=TA_CENTER, spaceAfter=4)
     story.append(Paragraph('Student Answer Sheet', cover_title_style))
-    story.append(Paragraph('Observability &amp; Centralized Logging — Chapter 5', cover_sub_style))
+    story.append(Paragraph('ELK Stack Lab - Chapter 5', cover_sub_style))
     story.append(sp(10))
 
     meta_data = [
@@ -594,8 +568,12 @@ def build():
          Paragraph('5', S['meta_value'])],
         [Paragraph('<b>Course</b>', S['meta_label']),
          Paragraph('Systems Reliability Engineering (SRE)', S['meta_value']),
-         Paragraph('<b>Lab</b>', S['meta_label']),
-         Paragraph('ELK Stack — Observability &amp; Centralized Logging', S['meta_value'])],
+         Paragraph('<b>Class</b>', S['meta_label']),
+         Paragraph('Semester 1, 2025-2026', S['meta_value'])],
+        [Paragraph('<b>Lab</b>', S['meta_label']),
+         Paragraph('ELK Stack - Observability & Centralized Logging', S['meta_value']),
+         Paragraph('<b>Chapter</b>', S['meta_label']),
+         Paragraph('5', S['meta_value'])],
     ]
     meta_col = [3.2*cm, 7.5*cm, 3.2*cm, 5.5*cm]
     meta_t = Table(meta_data, colWidths=meta_col)
@@ -865,21 +843,7 @@ def build():
             ]
         },
         {
-            'title': 'Data Source 4 — Cisco Network Logs (CEF)',
-            'color': colors.HexColor('#f57c00'),
-            'pairs': [
-                ('Source Name', 'Cisco IOS Syslog Simulator'),
-                ('Telemetry Type', 'Log'),
-                ('Shipper', 'Filebeat'),
-                ('Identity Protocol', 'CEF format via Beats on TCP 5044'),
-                ('Processing', 'Logstash Grok filter for CEF'),
-                ('Transformation', 'Extract src_ip, dst_ip, severity. GeoIP enrichment.'),
-                ('Final Destination', 'Elasticsearch: logs-cisco-YYYY.MM.DD'),
-                ('Visualization', 'Kibana — Network traffic map, severity chart'),
-            ]
-        },
-        {
-            'title': 'Data Source 5 — App Service (REST API)',
+            'title': 'Data Source 4 — App Service (REST API)',
             'color': colors.HexColor('#c62828'),
             'pairs': [
                 ('Source Name', 'Flask App Service'),
@@ -893,7 +857,7 @@ def build():
             ]
         },
         {
-            'title': 'Data Source 6 — Windows Security Event Logs',
+            'title': 'Data Source 5 — Windows Security Event Logs',
             'color': colors.HexColor('#bf360c'),
             'pairs': [
                 ('Source Name', 'Windows Server 2025 Security Event Log'),

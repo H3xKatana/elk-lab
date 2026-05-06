@@ -52,17 +52,6 @@ filebeat.inputs:
     max_bytes: 1048576
 
   - type: filestream
-    id: syslog-cisco
-    enabled: true
-    paths:
-      - /var/log/syslog/cisco.log
-    fields:
-      service: cisco
-    fields_under_root: true
-    harvester_buffer_size: 16384
-    max_bytes: 1048576
-
-  - type: filestream
     id: app-requests
     enabled: true
     paths:
