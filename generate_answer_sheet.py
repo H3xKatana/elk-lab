@@ -827,9 +827,6 @@ def build():
                 story.append(PageBreak())
         except Exception as e:
             pass
-            pass
-
-    story.append(PageBreak())
 
     # SECTION 7
     story.append(section_header('Section 7 — Final Deliverable: System Interaction Maps', S))
