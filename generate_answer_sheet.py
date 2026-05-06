@@ -795,29 +795,34 @@ def build():
     story.append(sp(10))
 
     story.append(PageBreak())
-    story.append(section_header('Screenshots - Kibana Visual Proof', S))
+    story.append(section_header('Section 6.5 - Screenshots: Kibana Visual Proof', S))
     story.append(sp(8))
 
     screenshot_files = [
-        ('explore-logs.png', 'Discover - Explore logs in Kibana'),
-        ('query-logs.png', 'Discover - Query logs with KQL'),
-        ('query-logs-b.png', 'Discover - Filter by service field'),
-        ('query-logs-c.png', 'Discover - Filter results'),
-        ('query-logs-d.png', 'Discover - View document details'),
-        ('dashboard-all.png', 'Dashboard - Full overview'),
-        ('create-vilz-b.png', 'Visualize - Create visualization'),
-        ('creating-vizulation.png', 'Visualize - Creating chart'),
-        ('nginx-healthy-200.png', 'Nginx - 200 status check'),
+        ('explore-logs.png', 'Figure 1: Discover - Explore logs in Kibana'),
+        ('query-logs.png', 'Figure 2: Discover - Query logs with KQL'),
+        ('query-logs-b.png', 'Figure 3: Discover - Filter by service field'),
+        ('query-logs-c.png', 'Figure 4: Discover - Filter results'),
+        ('query-logs-d.png', 'Figure 5: Discover - View document details'),
+        ('dashboard-all.png', 'Figure 6: Dashboard - Full overview'),
+        ('create-vilz-b.png', 'Figure 7: Visualize - Create visualization'),
+        ('creating-vizulation.png', 'Figure 8: Visualize - Creating chart'),
+        ('nginx-healthy-200.png', 'Figure 9: Nginx - 200 status check'),
+        ('windows-export-logs.png', 'Figure 10: Windows - Winlogbeat export logs'),
     ]
 
-    for img_file, caption in screenshot_files:
+    for i, (img_file, caption) in enumerate(screenshot_files):
         img_path = f'/home/morta/workspace/elk-lab/docs/images/{img_file}'
         try:
-            img = Image(img_path, width=14*cm, height=8*cm)
+            img = Image(img_path, width=9*cm, height=5*cm)
             story.append(img)
-            story.append(Paragraph(f'<i>{caption}</i>', S['meta_value']))
-            story.append(sp(8))
+            story.append(Paragraph(caption, S['meta_value']))
+            if (i + 1) % 2 == 0:
+                story.append(PageBreak())
+            else:
+                story.append(sp(4))
         except Exception as e:
+            pass
             pass
 
     story.append(PageBreak())
