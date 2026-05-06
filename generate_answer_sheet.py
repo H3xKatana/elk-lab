@@ -748,6 +748,18 @@ def build():
             Paragraph('<b>Local KDC</b> — embedded KDC for offline Kerberos auth using cached credentials.', S['body']),
         ], S),
     ]))
+    story.append(sp(10))
+
+    story.append(KeepTogether([
+        subsection_title('4.3 Forensic Prioritization', S),
+        sp(4),
+        Paragraph('Identify the two specific Windows Event IDs for logon success and failure:', S['body']),
+        sp(6),
+        answer_box([
+            Paragraph('<b>Logon Success Event ID:</b> 4624', S['body_bold']),
+            Paragraph('<b>Logon Failure Event ID:</b> 4625', S['body_bold']),
+        ], S, accent=C_AMBER, bg=C_AMBER_LIGHT),
+    ]))
     story.append(PageBreak())
 
     # SECTION 5
